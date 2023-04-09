@@ -78,6 +78,7 @@
                 return (dispatch) => {
                     return API.saveTodo(name).then((todo) => {
                         dispatch(addTodoAction(todo))
+                        cb();
                     }).catch(() => {
                         alert("There was an error. Try again.")
                     });
@@ -86,11 +87,11 @@
 
             function handleDeleteTodo(todo) {
                 return (dispatch) => {
-                    dispatch(removeTodoAction(todo.id))
+                    dispatch(removeTodoAction(todo.id));
     
                     return API.deleteTodo(todo.id).catch(() => {
                         props.store.dispatch(addTodoAction(todo));
-                        alert("An error occured. Try again.")
+                        alert("An error occured. Try again.");
                     });
                 };
             };
@@ -100,8 +101,8 @@
                     dispatch(toggleTodoAction(todoId));
 
                     return API.saveTodoToggle(todoId).catch(() => {
-                        dispatch(toggleTodoAction(todoId))
-                        alert("An error occured. Try again.")
+                        dispatch(toggleTodoAction(todoId));
+                        alert("An error occured. Try again.");
                     });
                 };
             };
@@ -109,7 +110,8 @@
             function handleAddGoal(name, cb) {
                 return (dispatch) => {
                     return API.saveGoal(name).then((goal) => {
-                        dispatch(addGoalAction(goal))
+                        dispatch(addGoalAction(goal));
+                        cb();
                     }).catch(() => {
                         alert("There was an error. Try again.")
                     })
@@ -235,7 +237,7 @@
                 const addItem = (e) => {
                     e.preventDefault();
 
-                    props.store.dispatch(
+                    props.dispatch(
                         handleAddTodo(
                             inputRef.current.value, 
                             () => (inputRef.current.value = "")
@@ -244,11 +246,11 @@
                 };
 
                 const removeItem = todo => {
-                    props.store.dispatch(handleDeleteTodo(todo));
+                    props.dispatch(handleDeleteTodo(todo));
                 };
 
                 const toggleItem = todoId => {
-                    props.store.dispatch(handleToggle(todoId));
+                    props.dispatch(handleToggle(todoId));
                 }
 
                 return (
@@ -268,14 +270,14 @@
                 const addItem = (e) => {
                     e.preventDefault();
 
-                    props.store.dispatch(handleAddGoal(
+                    props.dispatch(handleAddGoal(
                         inputRef.current.value,
                         () => (inputRef.current.value = "")
                     ));
                 };
 
                 const removeItem = goal => {
-                    store.dispatch(handleDeleteGoal(goal));
+                    props.dispatch(handleDeleteGoal(goal));
                 };
 
                 return (
@@ -287,6 +289,34 @@
                     </div>
                 );
             };
+
+            const ConnectedGoals = () => {
+                return (
+                    <Context.Consumer>
+                        {
+                            (store) => {
+                                const {goals} = store.getState();
+
+                                return <Goals goals={goals} dispatch={store.dispatch}/>
+                            }
+                        }
+                    </Context.Consumer>
+                )
+            }
+
+            const ConnectedTodos = () => {
+                return (
+                    <Context.Consumer>
+                        {
+                            (store) => {
+                                const { todos } = store.getState();
+
+                                return <Todos todos={todos} dispatch={store.dispatch}/>
+                            }
+                        }
+                    </Context.Consumer>
+                )
+            }
 
             const App = (props) => {
                 const [value, setValue] = React.useState(0);
@@ -301,7 +331,7 @@
 
                 store.subscribe(() => setValue((value) => value + 1));
 
-                const { todos, goals, loading } = store.getState();
+                const { loading } = store.getState();
 
                 if (loading === true) {
                     return <h3>Loading</h3>
@@ -309,13 +339,35 @@
 
                 return (
                     <div>
-                        <Todos todos={todos} store={props.store} />
-                        <Goals goals={goals} store={props.store} />
+                        <ConnectedTodos />
+                        <ConnectedGoals />
                     </div>
                 );
             };
 
-            ReactDOM.render(<App store={store}/>, document.getElementById("app"));
+            const ConnectedApp = () => {
+                return (
+                    <Context.Consumer>
+                        {
+                            (store) => {
+                                return <App store={store}/>
+                            }
+                        }
+                    </Context.Consumer>
+                )
+            }
+
+            const Context = React.createContext();
+            
+            const Provider = (props) => {
+                return (
+                    <Context.Provider value={props.store}>
+                        {props.children}
+                    </Context.Provider>
+                )
+            }
+
+            ReactDOM.render(<Provider store={store}><ConnectedApp /></Provider>, document.getElementById("app"));
         </script>
     </body>
 </html>
