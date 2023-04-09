@@ -7,6 +7,8 @@
         <script src="https://unpkg.com/react@17.0.2/umd/react.development.js"></script>
         <script src="https://unpkg.com/react-dom@17.0.2/umd/react-dom.development.js"></script>
         <script src="https://unpkg.com/@babel/standalone@7.17.6/babel.min.js"></script>
+        <script src="https://tylermcginnis.com/goals-todos-api/index.js"></script>
+        <script src="https://unpkg.com/redux-thunk@2.2.0/dist/redux-thunk.min.js"></script>
     </head>
 
     <body>
@@ -27,36 +29,104 @@
             const TOGGLE_TODO = "TOGGLE_TODO";
             const ADD_GOAL = "ADD_GOAL";
             const REMOVE_GOAL = "REMOVE_GOAL";
+            const RECEIVE_DATA= "RECEIVE_DATA";
+
             function addTodoAction(todo) {
                 return {
                     type: ADD_TODO,
                     todo,
                 };
-            }
+            };
+
             function removeTodoAction(id) {
                 return {
                     type: REMOVE_TODO,
                     id,
                 };
-            }
+            };
+
             function toggleTodoAction(id) {
                 return {
                     type: TOGGLE_TODO,
                     id,
                 };
-            }
+            };
+
             function addGoalAction(goal) {
                 return {
                     type: ADD_GOAL,
                     goal,
                 };
-            }
+            };
+
             function removeGoalAction(id) {
                 return {
                     type: REMOVE_GOAL,
                     id,
                 };
-            }
+            };
+
+            function receiveDataAction(todos, goals) {
+                return {
+                    type: RECEIVE_DATA,
+                    todos,
+                    goals,
+                };
+            };
+
+            function handleAddTodo(name, cb) {
+                return (dispatch) => {
+                    return API.saveTodo(name).then((todo) => {
+                        dispatch(addTodoAction(todo))
+                    }).catch(() => {
+                        alert("There was an error. Try again.")
+                    });
+                };
+            };
+
+            function handleDeleteTodo(todo) {
+                return (dispatch) => {
+                    dispatch(removeTodoAction(todo.id))
+    
+                    return API.deleteTodo(todo.id).catch(() => {
+                        props.store.dispatch(addTodoAction(todo));
+                        alert("An error occured. Try again.")
+                    });
+                };
+            };
+
+            function handleToggle(todoId) {
+                return (dispatch) => {
+                    dispatch(toggleTodoAction(todoId));
+
+                    return API.saveTodoToggle(todoId).catch(() => {
+                        dispatch(toggleTodoAction(todoId))
+                        alert("An error occured. Try again.")
+                    });
+                };
+            };
+
+            function handleAddGoal(name, cb) {
+                return (dispatch) => {
+                    return API.saveGoal(name).then((goal) => {
+                        dispatch(addGoalAction(goal))
+                    }).catch(() => {
+                        alert("There was an error. Try again.")
+                    })
+                };
+            };
+
+            function handleDeleteGoal(goal) {
+                return (dispatch) => {
+                    dispatch(removeGoalAction(goal.id))
+
+                    return API.deleteGoal(goal.id).catch(() => {
+                        props.store.dispatch(addGoalAction(goal));
+                        alert("An error occured. Try again.")
+                    });
+                };
+            };
+
             function todos(state = [], action) {
                 switch (action.type) {
                     case ADD_TODO:
@@ -69,20 +139,34 @@
                                 ? todo
                                 : { ...todo, complete: !todo.complete }
                         );
+                    case RECEIVE_DATA:
+                        return action.todos;
                     default:
                         return state;
-                }
-            }
+                };
+            };
+
             function goals(state = [], action) {
                 switch (action.type) {
                     case ADD_GOAL:
                         return state.concat([action.goal]);
                     case REMOVE_GOAL:
                         return state.filter((goal) => goal.id !== action.id);
+                    case RECEIVE_DATA:
+                        return action.goals;
                     default:
                         return state;
-                }
-            }
+                };
+            };
+
+            function loading (state=true, action) {
+                switch(action.type) {
+                    case RECEIVE_DATA:
+                        return false;
+                    default:
+                        return state;
+                };
+            };
 
             const checker = (store) => (next) => (action) => {
                 if (action.type === ADD_TODO) {
@@ -94,7 +178,7 @@
                 }
 
                 return next(action)
-            }
+            };
 
             const logger = (store) => (next) => (action) => {
                 console.group(action.type)
@@ -103,12 +187,23 @@
                 console.log('The new state: ', store.getState())
                 console.groupEnd()
                 return result
-            }
+            };
 
-            const store = Redux.createStore(Redux.combineReducers({
-                todos,
-                goals,
-            }), Redux.applyMiddleware(checker, logger));
+            // const thunk = (store) => (next) => (action) => {
+            //     if (action === 'function') {
+            //         return action(store.dispatch);
+            //     }
+
+            //     next(action);
+            // };
+
+            const store = Redux.createStore(
+                Redux.combineReducers({
+                    todos,
+                    goals,
+                    loading,
+                }), 
+                Redux.applyMiddleware(ReduxThunk.default, checker, logger));
         </script>
 
         <script type="text/babel">
@@ -126,7 +221,7 @@
                                     >
                                         {item.name}
                                     </span>
-                                    <button onClick={() => props.remove(item.id)}>X</button>
+                                    <button onClick={() => props.remove(item)}>X</button>
                                 </li>
                             ))
                         }
@@ -139,24 +234,21 @@
 
                 const addItem = (e) => {
                     e.preventDefault();
-                    const name = inputRef.current.value;
-                    inputRef.current.value = "";
 
                     props.store.dispatch(
-                        addTodoAction({
-                            name,
-                            complete: false,
-                            id: generateId(),
-                        })
-                    );
+                        handleAddTodo(
+                            inputRef.current.value, 
+                            () => (inputRef.current.value = "")
+                        )
+                    )
                 };
 
-                const removeItem = todoId => {
-                    props.store.dispatch(removeTodoAction(todoId))
+                const removeItem = todo => {
+                    props.store.dispatch(handleDeleteTodo(todo));
                 };
 
                 const toggleItem = todoId => {
-                    props.store.dispatch(toggleTodoAction(todoId));
+                    props.store.dispatch(handleToggle(todoId));
                 }
 
                 return (
@@ -175,19 +267,15 @@
 
                 const addItem = (e) => {
                     e.preventDefault();
-                    const name = inputRef.current.value;
-                    inputRef.current.value = "";
 
-                    props.store.dispatch(
-                        addGoalAction({
-                            name,
-                            id: generateId(),
-                        })
-                    );
+                    props.store.dispatch(handleAddGoal(
+                        inputRef.current.value,
+                        () => (inputRef.current.value = "")
+                    ));
                 };
 
-                const removeItem = goalId => {
-                    store.dispatch(removeGoalAction(goalIid))
+                const removeItem = goal => {
+                    store.dispatch(handleDeleteGoal(goal));
                 };
 
                 return (
@@ -204,12 +292,20 @@
                 const [value, setValue] = React.useState(0);
 
                 React.useEffect(() => {
-                    props.store.subscribe(() => {
-                        setValue((value) => value + 1)
-                    });
+                    Promise.all([API.fetchTodos(), API.fetchGoals()]).then(
+                        ([todos, goals]) => {
+                            store.dispatch(receiveDataAction(todos, goals));
+                        }
+                    );
                 }, [])
 
-                const { todos, goals } = store.getState();
+                store.subscribe(() => setValue((value) => value + 1));
+
+                const { todos, goals, loading } = store.getState();
+
+                if (loading === true) {
+                    return <h3>Loading</h3>
+                }
 
                 return (
                     <div>
